@@ -1,0 +1,24 @@
+{
+    "name": "fhir-validator-js",
+    "version": "1.0.0",
+    "description": "A Node.js wrapper for the HL7 FHIR Validator",
+    "main": "src/index.js",
+    "scripts": {
+        "postinstall": "node src/install.js",
+        "test": "node test/test.js"
+    },
+    "dependencies": {
+        "adm-zip": "^0.5.16",
+        "axios": "^1.7.9",
+        "fs-extra": "^11.3.0",
+        "is-port-reachable": "^4.0.0",
+        "tar": "^7.4.3"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "license": "Apache-2.0",
+    "devDependencies": {
+        "deep-diff": "^1.0.2"
+    }
+}
