@@ -1,0 +1,42 @@
+name: Auto Commit Bot
+
+on:
+  push:
+    paths:
+      - "commit-requests.txt"  # Trigger when this file changes
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # We'll use a token instead
+
+      - name: Read commit instructions
+        id: read-commit
+        run: |
+          if [ -f commit-requests.txt ]; then
+            echo "MESSAGE=$(cat commit-requests.txt | head -n 1)" >> $GITHUB_ENV
+          else
+            echo "No commit requests found."
+            exit 1
+          fi
+
+      - name: Make code changes (if applicable)
+        run: |
+          # Example: Modify a placeholder file
+          echo "Commit made by bot on $(date)" >> auto-bot-log.txt
+
+      - name: Commit and push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "$MESSAGE" || echo "No changes to commit"
+          git push
