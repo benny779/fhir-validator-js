@@ -94,7 +94,6 @@ This project is licensed under the **Apache License 2.0**.
 
 - **FHIR Validator (Apache 2.0)** - [HL7 FHIR Validator](https://github.com/hapifhir/org.hl7.fhir.validator-wrapper)
 - **OpenJDK (GPLv2 + Classpath Exception)** - [OpenJDK](https://openjdk.org/)
-- **Node.js dependencies (MIT License)**: `axios`, `fs-extra`, `is-port-reachable`
 
 ---
 
