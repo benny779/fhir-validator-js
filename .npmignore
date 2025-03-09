@@ -1,0 +1,53 @@
+# Ignore the bin directories
+bin/
+jdk/
+
+# Ignore log files
+*.log
+
+# Ignore node_modules (shouldn't be included in the package)
+node_modules/
+
+# Ignore development files
+.git
+.github
+.vscode
+.idea
+.git/
+.gitignore
+
+# Ignore test files
+test/
+tests/
+
+# Ignore configuration files
+.npmrc
+.eslintrc*
+.prettierrc*
+*.tsconfig.json
+.jest*
+.babelrc
+.editorconfig
+*.config.js
+
+# Ignore environment files
+.env
+.env.*
+
+# Ignore coverage reports
+coverage/
+
+# Ignore build artifacts
+dist/
+build/
+
+# Ignore documentation
+docs/
+
+# Ignore temporary files
+*.tmp
+*.temp
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
