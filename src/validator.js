@@ -13,6 +13,7 @@ class FHIRValidator {
     constructor({ cliContext = {} }) {
         this.javaExecutable = getJavaExecutable();
         this.cliContext = cliContext;
+        if (this.cliContext?.txServer && this.cliContext.txServer === 'n/a') this.cliContext.txServer = null;
         this.sessionId = null;
         this.keepAliveInterval = null;
     }
