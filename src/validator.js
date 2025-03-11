@@ -4,6 +4,7 @@ const axios = require('axios');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net'); // ✅ Required for checking port usage
+const crypto = require('crypto'); // For generating random UUID's
 
 const BIN_DIR = path.join(__dirname, '../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
@@ -87,11 +88,17 @@ class FHIRValidator {
         if (!this.sessionId) {
             throw new Error("Session not initialized. Call initializeSession() first.");
         }
-
+        
+        // Ensure resource is NOT an array
+        if (Array.isArray(resource)) {
+            throw new Error("Invalid input: 'resource' should be a single FHIR resource, not an array.");
+        }
+        
+        const randomFileName = crypto.randomUUID() + ".json";
         const response = await axios.post('http://localhost:3500/validate', {
             cliContext: this.cliContext,
             filesToValidate: [{
-                "fileName": "resource.json",
+                "fileName": randomFileName,
                 "fileContent": JSON.stringify(resource),
                 "fileType": "json"
               }],
