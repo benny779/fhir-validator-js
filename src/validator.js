@@ -84,28 +84,75 @@ class FHIRValidator {
         this.startKeepAlive();
     }
 
-    async validate(resource) {
+    async validate(resource, profiles = []) {
+        // Ensure session is initialized
         if (!this.sessionId) {
             throw new Error("Session not initialized. Call initializeSession() first.");
         }
-        
+
         // Ensure resource is NOT an array
         if (Array.isArray(resource)) {
-            throw new Error("Invalid input: 'resource' should be a single FHIR resource, not an array.");
+            if (resource.length === 1) {
+                resource = resource[0];
+            } else {
+                throw new Error("Invalid input: 'resource' should be a single FHIR resource, not an array.");
+            }
+        }
+
+        let _resource = null;
+
+        // if resource is a string, try to convert to JSON
+        if (typeof resource === 'string') {
+            try {
+                _resource = JSON.parse(resource);
+            } catch (error) {
+                throw new Error("Invalid input: 'resource' cannot be parsed as a valid JSON object.");
+            }
         }
         
-        const randomFileName = crypto.randomUUID() + ".json";
+        // Clone resource
+        _resource = _resource ?? structuredClone(resource);;
+        
+        // Ensure resource is an object
+        if (!_resource?.constructor || _resource?.constructor !== ({}).constructor || _resource === null || _resource === undefined) {
+            throw new Error("Invalid input: 'resource' should be a valid JSON object.");
+        }
+
+        // Ensure profiles is an array or string
+        if (!Array.isArray(profiles) && !typeof profiles === 'string') {
+            throw new Error("Invalid input: 'profiles' should be an array of profile URLs.");
+        }
+
+        // Enforce profiles to be an array
+        if (typeof profiles === 'string') {
+            profiles = [profiles];
+        }
+        
+        // Add profiles to resource
+        if (profiles.length > 0) {
+            if (!_resource?.meta) {
+                _resource.meta = {};
+            }
+            _resource.meta.profile = profiles;
+        }
+
+        // Convert resource to JSON string
+        const fileContent = JSON.stringify(_resource);
+        
+        const fileName = crypto.randomUUID() + ".json";
         const response = await axios.post('http://localhost:3500/validate', {
             cliContext: this.cliContext,
             filesToValidate: [{
-                "fileName": randomFileName,
-                "fileContent": JSON.stringify(resource),
+                fileName,
+                fileContent,
                 "fileType": "json"
               }],
             sessionId: this.sessionId
         });
 
-        return response.data;
+        const outcomes = response.data.outcomes[0];
+        delete outcomes.fileInfo;
+        return outcomes;
     }
 
     startKeepAlive() {
