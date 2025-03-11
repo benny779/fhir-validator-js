@@ -4,6 +4,7 @@ const deepDiff = require('deep-diff').diff;
 // Function to remove non-essential fields before comparison
 function cleanValidationResult(result) {
     result.outcomes.forEach(outcome => {
+        delete outcome.fileInfo;
         outcome.issues.forEach(issue => {
             delete issue.messageId;
             delete issue.slicingHint;
