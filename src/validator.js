@@ -150,6 +150,13 @@ class FHIRValidator {
             sessionId: this.sessionId
         });
 
+        // If the response contains a different sessionId, update it.
+        // This can happen if the machine was asleep for a long time and the session expired.
+        if (response.data.sessionId && response.data.sessionId !== this.sessionId) {
+            console.warn(`⚠ Session mismatch detected! Updating sessionId to ${response.data.sessionId}`);
+            this.sessionId = response.data.sessionId;
+        }
+
         const outcomes = response.data.outcomes[0];
         delete outcomes.fileInfo;
         return outcomes;
