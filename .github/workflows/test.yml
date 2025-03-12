@@ -18,5 +18,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run test script
+      - name: Run test script # first run will spawn a new validator process
+        run: npm test
+      
+      - name: Run test script again # second run will reuse existing validator process
         run: npm test
