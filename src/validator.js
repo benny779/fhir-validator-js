@@ -13,6 +13,7 @@ class FHIRValidator {
     constructor({ cliContext = {} }) {
         this.javaExecutable = getJavaExecutable();
         this.cliContext = cliContext;
+        if (this.cliContext?.txServer && this.cliContext.txServer === 'n/a') this.cliContext.txServer = null;
         this.sessionId = null;
         this.keepAliveInterval = null;
     }
@@ -48,24 +49,72 @@ class FHIRValidator {
      */
     async startValidator() {
         const isRunning = await this._isPortInUse(3500);
-
+    
         if (!isRunning) {
             log("🚀 Starting FHIR Validator Server...");
+            log("ℹ️ All logs from the validator process will be reported here.");
+    
             this.process = spawn(this.javaExecutable, [
                 "-Xms4G", "-Xmx100G", "-Dfile.encoding=UTF-8",
                 "-jar", JAR_PATH, "-startServer"
             ], {
                 detached: true,
-                stdio: 'ignore',
+                stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout & stderr
                 env: { ...process.env, ENVIRONMENT: "prod" }
             });
-
+    
+            let serverReady = false;
+    
+            // Capture standard output from JAR
+            this.process.stdout.on("data", data => {
+                const message = data.toString().trim();
+                log(`[FHIR Validator] ${message}`);
+    
+                // Check for readiness signal
+                if (
+                    message.includes("Responding at") || 
+                    message.includes("Started ServerConnector")
+                ) {
+                    serverReady = true;
+                }
+            });
+    
+            // Capture error output from JAR
+            this.process.stderr.on("data", data => {
+                logError(`[FHIR Validator ERROR] ${data.toString().trim()}`);
+            });
+    
+            // Handle process exit
+            this.process.on("exit", (code, signal) => {
+                logError(`⚠️ FHIR Validator process exited with code ${code}, signal ${signal}`);
+            });
+    
             this.process.unref();
-            await new Promise(resolve => setTimeout(resolve, 5000));
+    
+            // Wait until we detect server readiness or detect failure to bind port
+            await new Promise(resolve => {
+                const checkInterval = setInterval(async () => {
+                    if (serverReady) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    } else if (await this._isPortInUse(3500)) {
+                        log("⚠️ Another process successfully bound to the port. Switching to 'already running' mode and terminating this process.");
+                        this.process.kill();
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 500);
+            });
+    
+            if (serverReady) {
+                log("✅ FHIR Validator Server is ready.");
+            } else {
+                log("✅ FHIR Validator Server is already running.");
+            }
         } else {
             log("✅ FHIR Validator Server is already running.");
         }
-    }
+    }       
 
     async initializeSession() {
         log("🔍 Initializing FHIR validation session...");
@@ -192,7 +241,32 @@ class FHIRValidator {
             this.keepAliveInterval = null;
             log("🛑 Keep-alive interval cleared.");
         }
+    
+        if (this.process) {
+            log("ℹ️ Detaching from FHIR Validator process. It will continue running in the background.");
+    
+            // Ensure listeners are fully removed
+            this.process.stdout.removeAllListeners();
+            this.process.stderr.removeAllListeners();
+            this.process.on("exit", () => {}); // Prevent lingering events
+    
+            // Close the streams manually in case they are holding the event loop open
+            if (this.process.stdout) this.process.stdout.destroy();
+            if (this.process.stderr) this.process.stderr.destroy();
+    
+            // Force garbage collection of the process reference
+            this.process = null;
+        } else {
+            log("ℹ️ No validator process was managed by this instance.");
+        }
+    
+        // Force an immediate garbage collection cycle (helps in some cases)
+        if (global.gc) {
+            global.gc();
+        }
     }
+    
+    
 }
 
 module.exports = FHIRValidator;

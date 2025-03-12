@@ -1,0 +1,25 @@
+name: Run test script
+on:
+  workflow_dispatch: # Allows manual triggering via GitHub Actions UI
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test script # first run will spawn a new validator process
+        run: npm test
+      
+      - name: Run test script again # second run will reuse existing validator process
+        run: npm test
