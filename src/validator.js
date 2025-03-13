@@ -13,8 +13,8 @@ class FHIRValidator {
     constructor({ cliContext = {} }) {
         this.javaExecutable = getJavaExecutable();
         this.cliContext = cliContext;
-        if (this.cliContext?.txServer && this.cliContext.txServer === 'n/a') this.cliContext.txServer = null;
-        this.cliContext.baseEngine = '';
+        if (this.cliContext?.txServer && ['n/a', '', 'null', 'none'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
+        // this.cliContext.baseEngine = 'CUSTOM';
         this.cliContext.igs = this.cliContext?.igs || [];
         this.sessionId = null;
         this.keepAliveInterval = null;
@@ -64,7 +64,7 @@ class FHIRValidator {
      * Starts the Validator Server if it's not already running.
      */
     async startValidator() {
-        const isRunning = await this._isPortInUse(3500);
+        const isRunning = await this._isPortInUse();
     
         if (!isRunning) {
             log("🚀 Starting FHIR Validator Server...");
@@ -77,7 +77,10 @@ class FHIRValidator {
             ], {
                 detached: true,
                 stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout & stderr
-                env: { ...process.env, ENVIRONMENT: "prod" }
+                env: { 
+                    ...process.env, 
+                    ENVIRONMENT: "prod"
+                }
             });
     
             let serverReady = false;
@@ -115,7 +118,7 @@ class FHIRValidator {
                         // ✅ Our process successfully started
                         clearInterval(checkInterval);
                         resolve();
-                    } else if (await this._isPortInUse(3500) && !serverReady) {
+                    } else if (await this._isPortInUse() && !serverReady) {
                         // ⚠️ Another process took the port, and we never got "serverReady"
                         log("⚠️ Another process successfully bound to the port before ours was ready. Switching to 'already running' mode and terminating this process.");
                         this.process.kill();

@@ -5,7 +5,7 @@ const { log, logError } = require('./logger');
 
 const BIN_DIR = path.join(__dirname, '../../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
-const GITHUB_API_URL = "https://api.github.com/repos/hapifhir/org.hl7.fhir.validator-wrapper/releases/latest";
+const GITHUB_API_URL = "https://api.github.com/repos/Outburn-IL/java-validator-wrapper/releases/latest";
 
 /**
  * Fetches the latest FHIR Validator JAR URL from GitHub Releases.
@@ -16,7 +16,7 @@ async function getLatestValidatorJarUrl() {
         const response = await axios.get(GITHUB_API_URL);
         const assets = response.data.assets;
 
-        const jarAsset = assets.find(asset => asset.name.includes('validator_cli.jar'));
+        const jarAsset = assets.find(asset => asset.name.includes('validator.jar'));
         if (!jarAsset) {
             throw new Error("Validator CLI JAR not found in the latest release.");
         }
