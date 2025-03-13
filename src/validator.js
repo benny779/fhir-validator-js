@@ -69,7 +69,8 @@ class FHIRValidator {
             log("ℹ️ All logs from the validator process will be reported here.");
     
             this.process = spawn(this.javaExecutable, [
-                "-Xms4G", "-Xmx100G", "-Dfile.encoding=UTF-8",
+                //"-Xms4G", "-Xmx100G", 
+                "-Dfile.encoding=UTF-8",
                 "-jar", JAR_PATH, "-startServer"
             ], {
                 detached: true,
@@ -135,20 +136,28 @@ class FHIRValidator {
 
     async initializeSession() {
         log("🔍 Initializing FHIR validation session...");
-        const response = await axios.post('http://localhost:3500/validate', {
-            cliContext: this.cliContext,
-            filesToValidate: [{
-                "fileName": "initializeSession.json",
-                "fileContent": "{\"resourceType\": \"Basic\"}",
-                "fileType": "json"
-              }]
-        });
-
-        this.sessionId = response.data.sessionId;
-        log(`✅ Session initialized: ${this.sessionId}`);
-
-        this.startKeepAlive();
+    
+        try {
+            const response = await axios.post('http://localhost:3500/validate', {
+                cliContext: this.cliContext,
+                filesToValidate: [{
+                    "fileName": "initializeSession.json",
+                    "fileContent": "{\"resourceType\": \"Basic\"}",
+                    "fileType": "json"
+                }]
+            });
+    
+            this.sessionId = response.data.sessionId;
+            log(`✅ Session initialized: ${this.sessionId}`);
+    
+            this.startKeepAlive();
+        } catch (error) {
+            logError(`❌ Failed to initialize session: ${error.message}`);
+            logError(error.toString());
+            throw new Error("Failed to initialize FHIR validation session.");
+        }
     }
+    
 
     async validate(resource, profiles = []) {
         // Ensure session is initialized
@@ -206,26 +215,25 @@ class FHIRValidator {
         const fileContent = JSON.stringify(_resource);
         
         const fileName = crypto.randomUUID() + ".json";
-        const response = await axios.post('http://localhost:3500/validate', {
-            cliContext: this.cliContext,
-            filesToValidate: [{
-                fileName,
-                fileContent,
-                "fileType": "json"
-              }],
-            sessionId: this.sessionId
-        });
-
-        // If the response contains a different sessionId, update it.
-        // This can happen if the machine was asleep for a long time and the session expired.
-        if (response.data.sessionId && response.data.sessionId !== this.sessionId) {
-            console.warn(`⚠ Session mismatch detected! Updating sessionId to ${response.data.sessionId}`);
-            this.sessionId = response.data.sessionId;
+        try {
+            const response = await axios.post('http://localhost:3500/validate', {
+                cliContext: this.cliContext,
+                filesToValidate: [{ fileName, fileContent, "fileType": "json" }],
+                sessionId: this.sessionId
+            });
+    
+            if (response.data.sessionId && response.data.sessionId !== this.sessionId) {
+                log(`⚠ Session mismatch detected! Updating sessionId to ${response.data.sessionId}`);
+                this.sessionId = response.data.sessionId;
+            }
+    
+            const outcomes = response.data.outcomes[0];
+            delete outcomes.fileInfo;
+            return outcomes;
+        } catch (error) {
+            logError(`❌ Validation failed: ${error.message}`);
+            throw new Error("FHIR validation request failed.");
         }
-
-        const outcomes = response.data.outcomes[0];
-        delete outcomes.fileInfo;
-        return outcomes;
     }
 
     startKeepAlive() {
