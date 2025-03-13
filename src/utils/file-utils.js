@@ -5,18 +5,29 @@ const { log, logError } = require('./logger');
 
 const BIN_DIR = path.join(__dirname, '../../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
-const GITHUB_API_URL = "https://api.github.com/repos/hapifhir/org.hl7.fhir.validator-wrapper/releases/latest";
+// Outburn's fork of the Validator Wrapper, supports skipping preset loading
+const GITHUB_API_URL = "https://api.github.com/repos/Outburn-IL/org.hl7.fhir.validator-wrapper/releases/latest";
+// Fallback to the original HAPI FHIR Validator Wrapper
+const GITHUB_API_FALLBACK = "https://api.github.com/repos/hapifhir/org.hl7.fhir.validator-wrapper/releases/latest";
 
 /**
  * Fetches the latest FHIR Validator JAR URL from GitHub Releases.
  */
 async function getLatestValidatorJarUrl() {
+    let response;
+    try {
+        response = await axios.get(GITHUB_API_URL);
+    } catch (error) {
+        logError("❌ Failed to fetch Outburn's fork of the validator. Falling back to the original HAPI FHIR Validator Wrapper.");
+        response = await axios.get(GITHUB_API_FALLBACK);
+    }
+    
     try {
         log("🔎 Checking latest FHIR Validator release...");
-        const response = await axios.get(GITHUB_API_URL);
+        
         const assets = response.data.assets;
 
-        const jarAsset = assets.find(asset => asset.name.includes('validator_cli.jar'));
+        const jarAsset = assets.find(asset => asset.name.startsWith('validator') && asset.name.endsWith('.jar'));
         if (!jarAsset) {
             throw new Error("Validator CLI JAR not found in the latest release.");
         }

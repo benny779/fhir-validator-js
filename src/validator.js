@@ -13,9 +13,9 @@ class FHIRValidator {
     constructor({ cliContext = {} }) {
         this.javaExecutable = getJavaExecutable();
         this.cliContext = cliContext;
-        if (this.cliContext?.txServer && this.cliContext.txServer === 'n/a') this.cliContext.txServer = null;
-        this.cliContext.baseEngine = '';
+        if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
         this.cliContext.igs = this.cliContext?.igs || [];
+        this.cliContext.sv = this.cliContext?.sv || '4.0.1';
         this.sessionId = null;
         this.keepAliveInterval = null;
     }
@@ -24,7 +24,7 @@ class FHIRValidator {
      * Checks if the Validator Server is available by making a direct HTTP request.
      * @returns {Promise<boolean>} - Resolves to true if the server is responsive, otherwise false.
      */
-    async _isPortInUse() {
+    async isValidatorServerUp() {
         const url = "http://localhost:3500/ig";
         const maxRetries = 10;
         let attempts = 0;
@@ -64,7 +64,7 @@ class FHIRValidator {
      * Starts the Validator Server if it's not already running.
      */
     async startValidator() {
-        const isRunning = await this._isPortInUse(3500);
+        const isRunning = await this.isValidatorServerUp();
     
         if (!isRunning) {
             log("🚀 Starting FHIR Validator Server...");
@@ -77,7 +77,12 @@ class FHIRValidator {
             ], {
                 detached: true,
                 stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout & stderr
-                env: { ...process.env, ENVIRONMENT: "prod" }
+                env: { 
+                    ...process.env, 
+                    ENVIRONMENT: "prod",
+                    // DEFAULT_SV: this.cliContext.sv,
+                    LOAD_PRESETS: "false"
+                }
             });
     
             let serverReady = false;
@@ -115,7 +120,7 @@ class FHIRValidator {
                         // ✅ Our process successfully started
                         clearInterval(checkInterval);
                         resolve();
-                    } else if (await this._isPortInUse(3500) && !serverReady) {
+                    } else if (await this.isValidatorServerUp() && !serverReady) {
                         // ⚠️ Another process took the port, and we never got "serverReady"
                         log("⚠️ Another process successfully bound to the port before ours was ready. Switching to 'already running' mode and terminating this process.");
                         this.process.kill();
