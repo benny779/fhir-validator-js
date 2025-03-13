@@ -3,8 +3,8 @@ const { log, logError } = require('./utils/logger');
 const axios = require('axios');
 const path = require('path');
 const { spawn } = require('child_process');
-const net = require('net'); // ✅ Required for checking port usage
 const crypto = require('crypto'); // For generating random UUID's
+const http = require('http'); // ✅ Use Node's built-in HTTP client
 
 const BIN_DIR = path.join(__dirname, '../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
@@ -19,30 +19,44 @@ class FHIRValidator {
     }
 
     /**
-     * Checks if the specified port is in use.
-     * @param {number} port - The port number to check.
-     * @returns {Promise<boolean>} - Returns true if port is in use, false otherwise.
+     * Checks if the Validator Server is available by making a direct HTTP request.
+     * @returns {Promise<boolean>} - Resolves to true if the server is responsive, otherwise false.
      */
-    async _isPortInUse(port) {
-        return new Promise((resolve) => {
-            const server = net.createServer();
-
-            server.once('error', (err) => {
-                if (err.code === 'EADDRINUSE') {
-                    resolve(true); // ✅ Port is in use
-                } else {
-                    resolve(false);
-                }
-            });
-
-            server.once('listening', () => {
-                server.close();
-                resolve(false); // ✅ Port is free
-            });
-
-            server.listen(port);
-        });
+    async _isPortInUse() {
+        const url = "http://localhost:3500/ig";
+        const maxRetries = 10;
+        let attempts = 0;
+    
+        while (attempts < maxRetries) {
+            attempts++;
+    
+            try {
+                await new Promise((resolve, reject) => {
+                    const req = http.get(url, (res) => {
+                        if (res.statusCode === 200) {
+                            res.resume(); // Consume response data
+                            resolve(true);
+                        } else {
+                            reject(new Error(`Unexpected status code: ${res.statusCode}`));
+                        }
+                    });
+    
+                    req.on('error', () => reject(new Error("Server not reachable")));
+                    req.setTimeout(2000, () => {
+                        req.destroy();
+                        reject(new Error("Healthcheck timeout"));
+                    });
+                });
+    
+                return true; // ✅ Server is up
+            } catch (error) {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
+            }
+        }
+    
+        return false; // ❌ Server is not responding after retries
     }
+    
 
     /**
      * Starts the Validator Server if it's not already running.
@@ -91,20 +105,23 @@ class FHIRValidator {
     
             this.process.unref();
     
-            // Wait until we detect server readiness or detect failure to bind port
+            // Wait until we detect server readiness or determine another process has taken over
             await new Promise(resolve => {
                 const checkInterval = setInterval(async () => {
                     if (serverReady) {
+                        // ✅ Our process successfully started
                         clearInterval(checkInterval);
                         resolve();
-                    } else if (await this._isPortInUse(3500)) {
-                        log("⚠️ Another process successfully bound to the port. Switching to 'already running' mode and terminating this process.");
+                    } else if (await this._isPortInUse(3500) && !serverReady) {
+                        // ⚠️ Another process took the port, and we never got "serverReady"
+                        log("⚠️ Another process successfully bound to the port before ours was ready. Switching to 'already running' mode and terminating this process.");
                         this.process.kill();
                         clearInterval(checkInterval);
                         resolve();
                     }
                 }, 500);
             });
+
     
             if (serverReady) {
                 log("✅ FHIR Validator Server is ready.");
