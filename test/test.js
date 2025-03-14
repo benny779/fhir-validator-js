@@ -132,13 +132,12 @@ const expectedResult2 = {
 (async () => {
     const validator1 = await createValidatorInstance({
         sv: "4.0.1",
-        igs: ["il.core.fhir.r4#0.16.2"],
-        locale: "en"
+        igs: ["il.core.fhir.r4#0.16.2"]
     });
 
     const validator2 = await createValidatorInstance({
         sv: "4.0.1",
-        locale: "en"
+        igs: []
     });
 
     const resource = {
