@@ -83,7 +83,6 @@ class FHIRValidator {
                 env: { 
                     ...process.env, 
                     ENVIRONMENT: "prod",
-                    // DEFAULT_SV: this.cliContext.sv,
                     LOAD_PRESETS: "false"
                 }
             });
@@ -130,7 +129,7 @@ class FHIRValidator {
                         clearInterval(checkInterval);
                         resolve();
                     }
-                }, 500);
+                }, 300);
             });
 
     
