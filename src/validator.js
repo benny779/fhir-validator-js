@@ -74,7 +74,7 @@ class FHIRValidator {
             log("ℹ️ All logs from the validator process will be reported here.");
     
             this.process = spawn(this.javaExecutable, [
-                //"-Xms4G", "-Xmx100G", 
+                "-Xms2G", "-Xmx50G", 
                 "-Dfile.encoding=UTF-8",
                 "-jar", JAR_PATH, "-startServer"
             ], {
