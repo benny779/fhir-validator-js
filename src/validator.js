@@ -10,12 +10,15 @@ const BIN_DIR = path.join(__dirname, '../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
 
 class FHIRValidator {
-    constructor({ cliContext = {} }) {
+    constructor(cliContext) {
         this.javaExecutable = getJavaExecutable();
-        this.cliContext = cliContext;
-        if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
-        this.cliContext.igs = this.cliContext?.igs || [];
-        this.cliContext.sv = this.cliContext?.sv || '4.0.1';
+        if (cliContext) {
+            this.cliContext = cliContext;
+            if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
+            this.cliContext.igs = this.cliContext?.igs || [];
+            this.cliContext.sv = this.cliContext?.sv || '4.0.1';
+        }
+
         this.sessionId = null;
         this.keepAliveInterval = null;
     }
