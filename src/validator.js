@@ -28,7 +28,7 @@ class FHIRValidator {
      * @returns {Promise<boolean>} - Resolves to true if the server is responsive, otherwise false.
      */
     async isValidatorServerUp() {
-        const url = "http://localhost:3500/ig";
+        const url = "http://localhost:3500/validator/version";
         const maxRetries = 10;
         let attempts = 0;
     
