@@ -10,12 +10,15 @@ const BIN_DIR = path.join(__dirname, '../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
 
 class FHIRValidator {
-    constructor({ cliContext = {} }) {
+    constructor(cliContext) {
         this.javaExecutable = getJavaExecutable();
-        this.cliContext = cliContext;
-        if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
-        this.cliContext.igs = this.cliContext?.igs || [];
-        this.cliContext.sv = this.cliContext?.sv || '4.0.1';
+        if (cliContext) {
+            this.cliContext = cliContext;
+            if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
+            this.cliContext.igs = this.cliContext?.igs || [];
+            this.cliContext.sv = this.cliContext?.sv || '4.0.1';
+        }
+
         this.sessionId = null;
         this.keepAliveInterval = null;
     }
@@ -25,7 +28,7 @@ class FHIRValidator {
      * @returns {Promise<boolean>} - Resolves to true if the server is responsive, otherwise false.
      */
     async isValidatorServerUp() {
-        const url = "http://localhost:3500/ig";
+        const url = "http://localhost:3500/validator/version";
         const maxRetries = 10;
         let attempts = 0;
     
@@ -71,7 +74,7 @@ class FHIRValidator {
             log("ℹ️ All logs from the validator process will be reported here.");
     
             this.process = spawn(this.javaExecutable, [
-                //"-Xms4G", "-Xmx100G", 
+                "-Xms2G", "-Xmx50G", 
                 "-Dfile.encoding=UTF-8",
                 "-jar", JAR_PATH, "-startServer"
             ], {
@@ -80,7 +83,6 @@ class FHIRValidator {
                 env: { 
                     ...process.env, 
                     ENVIRONMENT: "prod",
-                    // DEFAULT_SV: this.cliContext.sv,
                     LOAD_PRESETS: "false"
                 }
             });
@@ -127,7 +129,7 @@ class FHIRValidator {
                         clearInterval(checkInterval);
                         resolve();
                     }
-                }, 500);
+                }, 300);
             });
 
     

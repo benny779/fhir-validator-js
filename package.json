@@ -1,6 +1,6 @@
 {
     "name": "fhir-validator-js",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "description": "A Node.js wrapper for the HL7 FHIR Validator",
     "main": "src/index.js",
     "homepage": "https://github.com/Outburn-IL/fhir-validator-js",
@@ -16,17 +16,21 @@
         "name": "Outburn Ltd.",
         "url": "https://outburn.health"
     },
-    "contributors": [{
-        "name": "Daniel Mechanik",
-        "email": "daniel@outburn.co.il"
-    }],
+    "contributors": [
+        {
+            "name": "Daniel Mechanik",
+            "email": "daniel@outburn.co.il"
+        }
+    ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Outburn-IL/fhir-validator-js.git"},
+        "url": "git+https://github.com/Outburn-IL/fhir-validator-js.git"
+    },
     "scripts": {
         "postinstall": "node src/install.js",
         "test": "node test/test.js",
-        "test:act": "act -W .github/workflows/test.yml"
+        "test:act": "act -W .github/workflows/test.yml",
+        "test:perf": "node test/perf.js"
     },
     "dependencies": {
         "adm-zip": "^0.5.16",
