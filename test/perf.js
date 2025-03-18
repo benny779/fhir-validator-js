@@ -1,8 +1,15 @@
 const createValidatorInstance = require('../src/index');
 const { performance } = require('perf_hooks');
+const os = require('os');
+const fs = require('fs');
+const { execSync } = require('child_process');
 
 // Configuration
-const NUM_RESOURCES = 1536; // Number of resources to generate
+const NUM_RESOURCES = 1536;
+const NUM_VALIDATORS = os.cpus().length;
+const BATCH_SIZES = [1, 4, 16, 64, 256];
+const PARALLEL_REQUESTS = [1, 2, 4, 8];
+const MEMORY_SAMPLING_INTERVAL = 500; // Milliseconds
 
 // Function to generate a randomized FHIR resource
 function generateRandomResource(index) {
@@ -19,38 +26,49 @@ function generateRandomResource(index) {
 
 // Pre-instantiate validators
 const validators = [];
+let validatorPID = null;
 const timings = {};
+const memoryUsage = [];
 
 async function initializeValidators() {
     console.log("Initializing validation server...");
     const startServer = performance.now();
-    await createValidatorInstance();
+    const instance = await createValidatorInstance();
     const endServer = performance.now();
     console.log(`Validation server running. Initialization Time: ${(endServer - startServer).toFixed(2)}ms`);
 
+    if (instance.pid) {
+        validatorPID = instance.pid;
+    }
+
     console.log("Initializing validator sessions...");
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < NUM_VALIDATORS; i++) {
         const startSession = performance.now();
-        validators[i] = await createValidatorInstance({
+        const validator = await createValidatorInstance({
             sv: "4.0.1",
             igs: ["il.core.fhir.r4#0.16.2"],
             txServer: null
         });
-        // warmup session by running validation on a single resource
+        if (validator.pid && !validatorPID) {
+            validatorPID = validator.pid;
+        }
+        validators[i] = validator;
+
         console.log(`Warming up validator session ${i}...`);
-        await callValidate(validators[i], generateRandomResource(i+10000));
+        await callValidate(validator, [generateRandomResource(i + 10000)]);
         const endSession = performance.now();
         console.log(`Validator session ${i} initialized in ${(endSession - startSession).toFixed(2)}ms`);
+    }
+    if (!validatorPID) {
+        throw new Error("No validator instance contains a PID. Cannot track external memory usage.");
     }
     console.log("All validator sessions initialized.");
 }
 
-// Function to call validate on a validator instance
-async function callValidate(validator, resource) {
-    return await validator.validate(resource, ['http://fhir.health.gov.il/StructureDefinition/il-core-patient']);    
+async function callValidate(validator, resources) {
+    return await validator.validate(resources, ['http://fhir.health.gov.il/StructureDefinition/il-core-patient']);
 }
 
-// Function to measure execution time
 async function measureTime(label, fn) {
     console.log(`Starting ${label}...`);
     const start = performance.now();
@@ -60,85 +78,60 @@ async function measureTime(label, fn) {
     console.log(`${label}: ${timings[label]}`);
 }
 
-async function runInSeries(resources, instanceIndex) {
-    for (const resource of resources) {
-        await callValidate(validators[instanceIndex], resource);
+async function monitorMemoryUsage() {
+    if (!validatorPID) return;
+    console.log("Starting memory tracking...");
+    while (true) {
+        try {
+            const memUsage = process.platform === 'win32' 
+                ? execSync(`tasklist /FI "PID eq ${validatorPID}" /FO CSV /NH`).toString().split(',')[4].replace(/"/g, '').trim()
+                : execSync(`ps -o rss= -p ${validatorPID}`).toString().trim();
+            memoryUsage.push({ timestamp: Date.now(), memory: parseInt(memUsage, 10) });
+        } catch (error) {
+            console.warn("Error reading memory usage: ", error);
+            break;
+        }
+        await new Promise(resolve => setTimeout(resolve, MEMORY_SAMPLING_INTERVAL));
     }
 }
 
-async function runAll(resources, instanceIndex) {
-    const chunkSize = Math.ceil(resources.length / 4);
-    await Promise.all([
-        runInSeries(resources.slice(0, chunkSize), instanceIndex),
-        runInSeries(resources.slice(chunkSize, chunkSize * 2), instanceIndex),
-        runInSeries(resources.slice(chunkSize * 2, chunkSize * 3), instanceIndex),
-        runInSeries(resources.slice(chunkSize * 3), instanceIndex)            
-    ]);
-}
-
-// Approach 1: Use a single validator instance
-async function testApproach1(resources) {
-    await measureTime("Approach 1 (Single Instance)", async () => {
-        await runAll(resources, 0);
-    });
-}
-
-// Approach 2: Use 2 validator instances
-async function testApproach2(resources) {
-    const half = Math.ceil(resources.length / 2);
-    await measureTime("Approach 2 (Parallel 2 Instances)", async () => {
-        await Promise.all([
-            runAll(resources.slice(0, half), 0),
-            runAll(resources.slice(half), 1)
-        ]);
-    });
-}
-
-
-// Approach 3: Use 3 validator instances
-async function testApproach3(resources) {
-    const chunkSize = Math.ceil(resources.length / 3);
-    await measureTime("Approach 3 (Parallel 3 Instances)", async () => {
-        await Promise.all([
-            runAll(resources.slice(0, chunkSize), 0),
-            runAll(resources.slice(chunkSize, chunkSize * 2), 1),
-            runAll(resources.slice(chunkSize * 2), 2)
-        ]);
-    });
-}
-
-// Approach 4: Use 4 validator instances
-async function testApproach4(resources) {
-    const chunkSize = Math.ceil(resources.length / 4);
-    await measureTime("Approach 4 (Parallel 4 Instances)", async () => {
-        await Promise.all([
-            runAll(resources.slice(0, chunkSize), 0),
-            runAll(resources.slice(chunkSize, chunkSize * 2), 1),
-            runAll(resources.slice(chunkSize * 2, chunkSize * 3), 2),
-            runAll(resources.slice(chunkSize * 3), 3)            
-        ]);
-    });
-}
-
-// Main function to execute tests
 async function runTests() {
     await initializeValidators();
-    let resources = [];
-    for (let i = 0; i < 4; i++) {
-        resources[i] = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
-    }
-    console.log(`Running performance tests with ${NUM_RESOURCES} resources...`);
-    await testApproach1(resources[0]);
-    await testApproach2(resources[1]);
-    await testApproach3(resources[2]);
-    await testApproach4(resources[3]);
+    console.log(`Running performance tests with ${NUM_RESOURCES} resources on ${NUM_VALIDATORS} CPU cores...`);
+
+    const memoryTracking = monitorMemoryUsage();
     
-    // Shutdown all validator instances
-    validators.forEach(validator => validator.shutdown());
+    for (const batchSize of BATCH_SIZES) {
+        for (const parallelRequests of PARALLEL_REQUESTS) {
+            for (let numInstances = 1; numInstances <= NUM_VALIDATORS; numInstances++) {
+                const chunkSize = Math.ceil(NUM_RESOURCES / numInstances);
+                const resources = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
+                
+                await measureTime(`Test [Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests}]`, async () => {
+                    await Promise.all(
+                        Array.from({ length: numInstances }, (_, i) =>
+                            Promise.all(
+                                Array.from({ length: parallelRequests }, () =>
+                                    callValidate(validators[i], resources.slice(0, batchSize))
+                                )
+                            )
+                        )
+                    );
+                });
+            }
+        }
+    }
     
     console.log("Performance tests completed.");
     console.log("Summary of Execution Times:");
     Object.entries(timings).forEach(([key, value]) => console.log(`${key}: ${value}`));
+
+    // Stop memory tracking and save results
+    fs.writeFileSync('memory_usage.json', JSON.stringify(memoryUsage, null, 2));
+    console.log("Memory tracking data saved to memory_usage.json");
+
+    // Shutdown all validator instances
+    validators.forEach(validator => validator.shutdown());
 }
 
 runTests().catch(console.error);
