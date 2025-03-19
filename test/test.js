@@ -24,53 +24,156 @@ function cleanValidationResult(result) {
 
 const expectedResult1 = {
     "issues": [
-        {
+      {
+        "source": "InstanceValidator",
+        "line": 1,
+        "col": 79,
+        "location": "Patient.name[0]",
+        "message": "This element does not match any known slice defined in the profile http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0 (this may not be a problem, but you should check that it's not intended to match a slice)",
+        "messageId": "Details_for__matching_against_Profile_",
+        "type": "INFORMATIONAL",
+        "level": "INFORMATION",
+        "html": "This element does not match any known slice defined in the profile http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0 (this may not be a problem, but you should check that it's not intended to match a slice)",
+        "sliceHtml": "This element does not match any known slice Defined in the profile http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0 (this may not be a problem, but you should check that it's not intended to match a slice)<ul><li>Patient.name[0]: discriminator = true and ('he' in extension('http://hl7.org/fhir/StructureDefinition/language').value)</li>, <li>Patient.name[0]: discriminator = true and ('en' in extension('http://hl7.org/fhir/StructureDefinition/language').value)</li>, <li>Patient.name[0]: discriminator = true and ('ar' in extension('http://hl7.org/fhir/StructureDefinition/language').value)</li></ul>",
+        "sliceText": [
+          "Patient.name[0]: Does not match slice 'Hebrew' (discriminator: ('he' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+          "Patient.name[0]: Does not match slice 'English' (discriminator: ('en' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+          "Patient.name[0]: Does not match slice 'Arabic' (discriminator: ('ar' in extension('http://hl7.org/fhir/StructureDefinition/language').value))"
+        ],
+        "slicingHint": true,
+        "signpost": false,
+        "criticalSignpost": false,
+        "matched": false,
+        "ignorableError": false,
+        "sliceInfo": [
+          {
             "source": "InstanceValidator",
             "line": 1,
-            "col": 166,
-            "location": "Patient",
-            "message": "Constraint failed: dom-6: 'A resource should have narrative for robust management' (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)",
-            "type": "INVARIANT",
-            "level": "WARNING"
-        },
-        {
-            "source": "InstanceValidator",
-            "line": 1,
-            "col": 164,
+            "col": 79,
             "location": "Patient.name[0]",
-            "message": "This element does not match any known slice defined in the profile http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0 (this may not be a problem, but you should check that it's not intended to match a slice)",
-            "type": "INFORMATIONAL",
-            "level": "INFORMATION"
-        },
-        {
+            "message": "Does not match slice 'Hebrew' (discriminator: ('he' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "messageId": "Details_for__matching_against_Profile_",
+            "type": "STRUCTURE",
+            "level": "INFORMATION",
+            "html": "Does not match slice 'Hebrew' (discriminator: ('he' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "sliceHtml": "discriminator = true and ('he' in extension('http://hl7.org/fhir/StructureDefinition/language').value)",
+            "slicingHint": true,
+            "signpost": false,
+            "criticalSignpost": false,
+            "matched": false,
+            "ignorableError": false,
+            "count": 0
+          },
+          {
             "source": "InstanceValidator",
             "line": 1,
-            "col": 166,
-            "location": "Patient",
-            "message": "Patient.identifier: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+            "col": 79,
+            "location": "Patient.name[0]",
+            "message": "Does not match slice 'English' (discriminator: ('en' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "messageId": "Details_for__matching_against_Profile_",
             "type": "STRUCTURE",
-            "level": "ERROR"
-        },
-        {
+            "level": "INFORMATION",
+            "html": "Does not match slice 'English' (discriminator: ('en' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "sliceHtml": "discriminator = true and ('en' in extension('http://hl7.org/fhir/StructureDefinition/language').value)",
+            "slicingHint": true,
+            "signpost": false,
+            "criticalSignpost": false,
+            "matched": false,
+            "ignorableError": false,
+            "count": 0
+          },
+          {
             "source": "InstanceValidator",
             "line": 1,
-            "col": 166,
-            "location": "Patient",
-            "message": "Patient.gender: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+            "col": 79,
+            "location": "Patient.name[0]",
+            "message": "Does not match slice 'Arabic' (discriminator: ('ar' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "messageId": "Details_for__matching_against_Profile_",
             "type": "STRUCTURE",
-            "level": "ERROR"
-        },
-        {
-            "source": "InstanceValidator",
-            "line": 1,
-            "col": 166,
-            "location": "Patient",
-            "message": "Patient.birthDate: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
-            "type": "STRUCTURE",
-            "level": "ERROR"
-        }
+            "level": "INFORMATION",
+            "html": "Does not match slice 'Arabic' (discriminator: ('ar' in extension('http://hl7.org/fhir/StructureDefinition/language').value))",
+            "sliceHtml": "discriminator = true and ('ar' in extension('http://hl7.org/fhir/StructureDefinition/language').value)",
+            "slicingHint": true,
+            "signpost": false,
+            "criticalSignpost": false,
+            "matched": false,
+            "ignorableError": false,
+            "count": 0
+          }
+        ],
+        "count": 0
+      },
+      {
+        "source": "InstanceValidator",
+        "line": 1,
+        "col": 81,
+        "location": "Patient",
+        "message": "Patient.identifier: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "messageId": "Validation_VAL_Profile_Minimum",
+        "type": "STRUCTURE",
+        "level": "ERROR",
+        "html": "Patient.identifier: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "slicingHint": false,
+        "signpost": false,
+        "criticalSignpost": false,
+        "matched": false,
+        "ignorableError": false,
+        "count": 0
+      },
+      {
+        "source": "InstanceValidator",
+        "line": 1,
+        "col": 81,
+        "location": "Patient",
+        "message": "Patient.gender: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "messageId": "Validation_VAL_Profile_Minimum",
+        "type": "STRUCTURE",
+        "level": "ERROR",
+        "html": "Patient.gender: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "slicingHint": false,
+        "signpost": false,
+        "criticalSignpost": false,
+        "matched": false,
+        "ignorableError": false,
+        "count": 0
+      },
+      {
+        "source": "InstanceValidator",
+        "line": 1,
+        "col": 81,
+        "location": "Patient",
+        "message": "Patient.birthDate: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "messageId": "Validation_VAL_Profile_Minimum",
+        "type": "STRUCTURE",
+        "level": "ERROR",
+        "html": "Patient.birthDate: minimum required = 1, but only found 0 (from http://fhir.health.gov.il/StructureDefinition/il-core-patient|0.16.0)",
+        "slicingHint": false,
+        "signpost": false,
+        "criticalSignpost": false,
+        "matched": false,
+        "ignorableError": false,
+        "count": 0
+      },
+      {
+        "source": "InstanceValidator",
+        "line": 1,
+        "col": 81,
+        "location": "Patient",
+        "message": "Constraint failed: dom-6: 'A resource should have narrative for robust management' (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)",
+        "messageId": "http://hl7.org/fhir/StructureDefinition/DomainResource#dom-6",
+        "type": "INVARIANT",
+        "level": "WARNING",
+        "html": "Constraint failed: dom-6: 'A resource should have narrative for robust management' (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)",
+        "slicingHint": false,
+        "signpost": false,
+        "criticalSignpost": false,
+        "matched": false,
+        "ignorableError": false,
+        "invId": "http://hl7.org/fhir/StructureDefinition/DomainResource#dom-6",
+        "count": 0
+      }
     ]
-};
+  };
 
 const expectedResult2 = {
     "issues": [
@@ -149,7 +252,10 @@ const expectedResult2 = {
         name: [{ given: ["John"], family: "Doe" }]
     };
 
-    const result1 = await validator1.validate(resource, ["http://fhir.health.gov.il/StructureDefinition/il-core-patient"]);
+    const resourceNoMeta = { ... resource};
+    delete resourceNoMeta.meta;
+
+    const result1 = await validator1.validate(resourceNoMeta, ["http://fhir.health.gov.il/StructureDefinition/il-core-patient"]);
     const result2 = await validator2.validate(resource);
     console.log("Validation 1 Result:", JSON.stringify(result1, null, 2));
     console.log("Validation 2 Result:", JSON.stringify(result2, null, 2));

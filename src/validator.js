@@ -1,3 +1,8 @@
+/**
+ * © Copyright Outburn Ltd. 2025 All Rights Reserved
+ *   Project name: FUME / FHIR Validator
+ */
+
 const { getJavaExecutable } = require('./utils/jdk-utils');
 const { log, logError } = require('./utils/logger');
 const axios = require('axios');
@@ -21,6 +26,7 @@ class FHIRValidator {
 
         this.sessionId = null;
         this.keepAliveInterval = null;
+        this.pid = null;
     }
 
     /**
@@ -72,11 +78,22 @@ class FHIRValidator {
         if (!isRunning) {
             log("🚀 Starting FHIR Validator Server...");
             log("ℹ️ All logs from the validator process will be reported here.");
-    
             this.process = spawn(this.javaExecutable, [
-                "-Xms2G", "-Xmx50G", 
+                '-Xms4G',
+                '-Xmx16G',
+                // '-XX:+UseZGC',
+                // '-Xshare:on',
+                // '-XX:+AlwaysPreTouch',
+                // '-XX:MaxGCPauseMillis=200',
+                // '-XX:ParallelGCThreads=4',
+                // '-XX:+TieredCompilation',
+                // '-XX:+UseStringDeduplication',
+                // `-Dvalidator.maxThreads=${Math.floor(require('os').cpus().length * 0.75)}`,
+                // '-Dhttp.keepAlive.timeout=300',
                 "-Dfile.encoding=UTF-8",
-                "-jar", JAR_PATH, "-startServer"
+                "-jar",
+                JAR_PATH,
+                "-startServer"
             ], {
                 detached: true,
                 stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout & stderr
@@ -113,13 +130,13 @@ class FHIRValidator {
                 logError(`⚠️ FHIR Validator process exited with code ${code}, signal ${signal}`);
             });
     
-            this.process.unref();
-    
             // Wait until we detect server readiness or determine another process has taken over
             await new Promise(resolve => {
                 const checkInterval = setInterval(async () => {
                     if (serverReady) {
                         // ✅ Our process successfully started
+                        console.log(this.process.toString());
+                        this.pid = this.process.pid; // ✅ Store process ID of the spawned validator
                         clearInterval(checkInterval);
                         resolve();
                     } else if (await this.isValidatorServerUp() && !serverReady) {
@@ -132,16 +149,18 @@ class FHIRValidator {
                 }, 300);
             });
 
+            this.process.unref(); // Prevent the process from keeping the event loop alive
     
             if (serverReady) {
-                log("✅ FHIR Validator Server is ready.");
+                log(`✅ FHIR Validator Server is ready. (PID: ${this.pid})`);
             } else {
                 log("✅ FHIR Validator Server is already running.");
             }
         } else {
             log("✅ FHIR Validator Server is already running.");
         }
-    }       
+    }
+         
 
     async initializeSession() {
         log("🔍 Initializing FHIR validation session...");
@@ -171,63 +190,36 @@ class FHIRValidator {
     async validate(resource, profiles = []) {
         // Ensure session is initialized
         if (!this.sessionId) {
-            throw new Error("Session not initialized. Call initializeSession() first.");
+            throw new Error("Session not initialized. You need to pass a valid CLI context object when creating a new validator instance.");
         }
 
-        // Ensure resource is NOT an array
-        if (Array.isArray(resource)) {
-            if (resource.length === 1) {
-                resource = resource[0];
-            } else {
-                throw new Error("Invalid input: 'resource' should be a single FHIR resource, not an array.");
-            }
-        }
-
-        let _resource = null;
-
-        // if resource is a string, try to convert to JSON
-        if (typeof resource === 'string') {
-            try {
-                _resource = JSON.parse(resource);
-            } catch (error) {
-                throw new Error("Invalid input: 'resource' cannot be parsed as a valid JSON object.");
-            }
-        }
-        
-        // Clone resource
-        _resource = _resource ?? structuredClone(resource);;
-        
-        // Ensure resource is an object
-        if (!_resource?.constructor || _resource?.constructor !== ({}).constructor || _resource === null || _resource === undefined) {
-            throw new Error("Invalid input: 'resource' should be a valid JSON object.");
-        }
-
-        // Ensure profiles is an array or string
-        if (!Array.isArray(profiles) && !typeof profiles === 'string') {
-            throw new Error("Invalid input: 'profiles' should be an array of profile URLs.");
+        // Enforce resource to be an array
+        if (!Array.isArray(resource)) {
+            resource = [resource];
         }
 
         // Enforce profiles to be an array
-        if (typeof profiles === 'string') {
+        if (!Array.isArray(profiles)) {
             profiles = [profiles];
         }
+        const batchId = crypto.randomUUID();
+        const cliContext = this.cliContext;
         
-        // Add profiles to resource
+        // Add profiles to cliContext
         if (profiles.length > 0) {
-            if (!_resource?.meta) {
-                _resource.meta = {};
-            }
-            _resource.meta.profile = profiles;
+            cliContext.profiles = profiles;
         }
 
-        // Convert resource to JSON string
-        const fileContent = JSON.stringify(_resource);
+        // Function to convert a resource to a validation API request's filesToValidate format
+        const resourceEntry = (instance, index) => {
+            const fileName = `${batchId}_${index.toString()}.json`;
+            return { fileName, fileContent: JSON.stringify(instance), "fileType": "json" }
+        };
         
-        const fileName = crypto.randomUUID() + ".json";
         try {
             const response = await axios.post('http://localhost:3500/validate', {
-                cliContext: this.cliContext,
-                filesToValidate: [{ fileName, fileContent, "fileType": "json" }],
+                cliContext,
+                filesToValidate: resource.map(resourceEntry),
                 sessionId: this.sessionId
             });
     
@@ -236,8 +228,20 @@ class FHIRValidator {
                 this.sessionId = response.data.sessionId;
             }
     
-            const outcomes = response.data.outcomes[0];
-            delete outcomes.fileInfo;
+            const outcomes = response.data.outcomes.map((outcome, index) => {
+                // check if the outcome entry matches the resource entry at the same index
+                if (outcome.fileInfo.fileName !== `${batchId}_${index.toString()}.json`) {
+                    log(`⚠️ Mismatch detected between resource and outcome at index ${index}.`);
+                    log(`Resource: ${JSON.stringify(resource[index])}`);
+                    log(`Outcome: ${JSON.stringify(outcome)}`);
+                } else {
+                    // Remove fileInfo from outcome
+                    delete outcome.fileInfo;
+                }
+                return outcome;
+            });
+
+            if (outcomes.length === 1) return outcomes[0]
             return outcomes;
         } catch (error) {
             logError(`❌ Validation failed: ${error.message}`);
@@ -288,6 +292,9 @@ class FHIRValidator {
             if (this.process.stdout) this.process.stdout.destroy();
             if (this.process.stderr) this.process.stderr.destroy();
     
+            // Set pid
+            this.pid = this.process.pid;
+
             // Force garbage collection of the process reference
             this.process = null;
         } else {

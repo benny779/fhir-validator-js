@@ -1,3 +1,7 @@
+/**
+ * © Copyright Outburn Ltd. 2025 All Rights Reserved
+ *   Project name: FUME / FHIR Validator
+ */
 const { downloadAndExtractJDK } = require('./utils/jdk-utils');
 const { downloadValidatorJar } = require('./utils/file-utils'); // ✅ Import fix
 const { log, logError } = require('./utils/logger');

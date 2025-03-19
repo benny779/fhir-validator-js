@@ -30,7 +30,8 @@
         "postinstall": "node src/install.js",
         "test": "node test/test.js",
         "test:act": "act -W .github/workflows/test.yml",
-        "test:perf": "node test/perf.js"
+        "test:perf": "node test/perf.js",
+        "test:perf:act": "act -W .github/workflows/perf.yml"
     },
     "dependencies": {
         "adm-zip": "^0.5.16",

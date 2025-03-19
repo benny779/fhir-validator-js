@@ -1,3 +1,8 @@
+/**
+ * © Copyright Outburn Ltd. 2025 All Rights Reserved
+ *   Project name: FUME / FHIR Validator
+ */
+
 const fs = require('fs-extra');
 const axios = require('axios');
 const path = require('path');

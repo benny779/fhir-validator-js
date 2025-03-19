@@ -1,15 +1,11 @@
 const createValidatorInstance = require('../src/index');
 const { performance } = require('perf_hooks');
-const os = require('os');
-const fs = require('fs');
-const { execSync } = require('child_process');
 
 // Configuration
-const NUM_RESOURCES = 1536;
-const NUM_VALIDATORS = os.cpus().length;
-const BATCH_SIZES = [1, 4, 16, 64, 256];
-const PARALLEL_REQUESTS = [1, 2, 4, 8];
-const MEMORY_SAMPLING_INTERVAL = 500; // Milliseconds
+const NUM_VALIDATORS = 4;
+const NUM_RESOURCES = 128;
+const BATCH_SIZES = [1, 4, 8, 16, 32];
+const PARALLEL_REQUESTS = [1, 2, 3];
 
 // Function to generate a randomized FHIR resource
 function generateRandomResource(index) {
@@ -26,20 +22,13 @@ function generateRandomResource(index) {
 
 // Pre-instantiate validators
 const validators = [];
-let validatorPID = null;
-const timings = {};
-const memoryUsage = [];
 
 async function initializeValidators() {
     console.log("Initializing validation server...");
     const startServer = performance.now();
-    const instance = await createValidatorInstance();
+    await createValidatorInstance();
     const endServer = performance.now();
     console.log(`Validation server running. Initialization Time: ${(endServer - startServer).toFixed(2)}ms`);
-
-    if (instance.pid) {
-        validatorPID = instance.pid;
-    }
 
     console.log("Initializing validator sessions...");
     for (let i = 0; i < NUM_VALIDATORS; i++) {
@@ -49,18 +38,13 @@ async function initializeValidators() {
             igs: ["il.core.fhir.r4#0.16.2"],
             txServer: null
         });
-        if (validator.pid && !validatorPID) {
-            validatorPID = validator.pid;
-        }
+
         validators[i] = validator;
 
         console.log(`Warming up validator session ${i}...`);
-        await callValidate(validator, [generateRandomResource(i + 10000)]);
+        await callValidate(validator, generateRandomResource(i + 10000));
         const endSession = performance.now();
         console.log(`Validator session ${i} initialized in ${(endSession - startSession).toFixed(2)}ms`);
-    }
-    if (!validatorPID) {
-        throw new Error("No validator instance contains a PID. Cannot track external memory usage.");
     }
     console.log("All validator sessions initialized.");
 }
@@ -70,67 +54,87 @@ async function callValidate(validator, resources) {
 }
 
 async function measureTime(label, fn) {
-    console.log(`Starting ${label}...`);
-    const start = performance.now();
-    await fn();
-    const end = performance.now();
-    timings[label] = (end - start).toFixed(2) + "ms";
-    console.log(`${label}: ${timings[label]}`);
-}
+    console.time(label);
+    const startTime = Date.now();
 
-async function monitorMemoryUsage() {
-    if (!validatorPID) return;
-    console.log("Starting memory tracking...");
-    while (true) {
-        try {
-            const memUsage = process.platform === 'win32' 
-                ? execSync(`tasklist /FI "PID eq ${validatorPID}" /FO CSV /NH`).toString().split(',')[4].replace(/"/g, '').trim()
-                : execSync(`ps -o rss= -p ${validatorPID}`).toString().trim();
-            memoryUsage.push({ timestamp: Date.now(), memory: parseInt(memUsage, 10) });
-        } catch (error) {
-            console.warn("Error reading memory usage: ", error);
-            break;
-        }
-        await new Promise(resolve => setTimeout(resolve, MEMORY_SAMPLING_INTERVAL));
-    }
+    await fn(); // Run the async function
+
+    const durationMs = Date.now() - startTime;
+    console.timeEnd(label);
+
+    return durationMs; // Ensure the duration is returned
 }
 
 async function runTests() {
     await initializeValidators();
     console.log(`Running performance tests with ${NUM_RESOURCES} resources on ${NUM_VALIDATORS} CPU cores...`);
 
-    const memoryTracking = monitorMemoryUsage();
-    
+    const results = [];
+
     for (const batchSize of BATCH_SIZES) {
         for (const parallelRequests of PARALLEL_REQUESTS) {
             for (let numInstances = 1; numInstances <= NUM_VALIDATORS; numInstances++) {
-                const chunkSize = Math.ceil(NUM_RESOURCES / numInstances);
-                const resources = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
                 
-                await measureTime(`Test [Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests}]`, async () => {
-                    await Promise.all(
-                        Array.from({ length: numInstances }, (_, i) =>
-                            Promise.all(
-                                Array.from({ length: parallelRequests }, () =>
-                                    callValidate(validators[i], resources.slice(0, batchSize))
+                const resources = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
+
+                let totalProcessed = 0;
+
+                const durationMs = await measureTime(
+                    `Test [Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests}]`,
+                    async () => {
+                        await Promise.all(
+                            Array.from({ length: numInstances }, (_, i) =>
+                                Promise.all(
+                                    Array.from({ length: parallelRequests }, async () => {
+                                        while (totalProcessed < NUM_RESOURCES) {
+                                            const batch = resources.slice(totalProcessed, totalProcessed + batchSize);
+                                            if (batch.length === 0) break;
+
+                                            await callValidate(validators[i], batch);
+                                            totalProcessed += batch.length;
+                                        }
+                                    })
                                 )
                             )
-                        )
-                    );
+                        );
+                    }
+                );
+
+                if (durationMs === undefined || isNaN(durationMs)) {
+                    console.error("❌ Error: `measureTime` did not return a valid duration!");
+                    return;
+                }
+
+                const totalRequests = NUM_RESOURCES;
+                const throughput = (totalRequests / (durationMs / 1000)).toFixed(2);
+
+                results.push({
+                    numInstances,
+                    batchSize,
+                    parallelRequests,
+                    durationMs,
+                    throughput
                 });
+
+                console.log(
+                    `📊 Throughput: ${throughput} requests/sec (Time: ${durationMs}ms, Total Requests: ${totalRequests})`
+                );
             }
         }
     }
-    
-    console.log("Performance tests completed.");
-    console.log("Summary of Execution Times:");
-    Object.entries(timings).forEach(([key, value]) => console.log(`${key}: ${value}`));
 
-    // Stop memory tracking and save results
-    fs.writeFileSync('memory_usage.json', JSON.stringify(memoryUsage, null, 2));
-    console.log("Memory tracking data saved to memory_usage.json");
+    console.log("✅ Performance tests completed.");
+    console.log("📊 Summary of Execution Times:");
 
-    // Shutdown all validator instances
+    results
+    .sort((a, b) => Number(a.throughput) - Number(b.throughput)) // Sort results by throughput
+    .forEach(({ numInstances, batchSize, parallelRequests, durationMs, throughput }) =>
+        console.log(
+            `Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests} → ` +
+            `Time: ${durationMs}ms, Throughput: ${Number(throughput).toFixed(2)} req/sec`
+        )
+    );
+
     validators.forEach(validator => validator.shutdown());
 }
 
