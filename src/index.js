@@ -1,3 +1,8 @@
+/**
+ * © Copyright Outburn Ltd. 2025 All Rights Reserved
+ *   Project name: FUME / FHIR Validator
+ */
+
 const FHIRValidator = require('./validator');
 
 async function createValidatorInstance(cliContext) {

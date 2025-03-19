@@ -1,3 +1,8 @@
+/**
+ * © Copyright Outburn Ltd. 2025 All Rights Reserved
+ *   Project name: FUME / FHIR Validator
+ */
+
 const { getJavaExecutable } = require('./utils/jdk-utils');
 const { log, logError } = require('./utils/logger');
 const axios = require('axios');
