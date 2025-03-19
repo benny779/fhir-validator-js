@@ -10,7 +10,7 @@ async function createValidatorInstance(cliContext) {
     await validator.startValidator();
     if (!cliContext) {
         validator.shutdown();
-        return undefined
+        return validator;
     };
     await validator.initializeSession();
     return validator;
