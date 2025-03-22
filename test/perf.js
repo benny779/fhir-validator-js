@@ -22,6 +22,7 @@ function generateRandomResource(index) {
 
 // Pre-instantiate validators
 const validators = [];
+const sessionIds = ['9f304524-87b5-42af-9109-d60db0da87dd', 'c25d8a2e-abfc-4f8c-8246-c41eb263f103', '5a11b6af-7cfe-4187-8477-b3e5ebf61149', '320a7e55-8a63-48f4-9fbb-bc25c8ffc972'];
 
 async function initializeValidators() {
     console.log("Initializing validation server...");
@@ -36,7 +37,8 @@ async function initializeValidators() {
         const validator = await createValidatorInstance({
             sv: "4.0.1",
             igs: ["il.core.fhir.r4#0.16.2"],
-            txServer: null
+            txServer: null,
+            sessionId: sessionIds.length > i ? sessionIds[i] : null
         });
 
         validators[i] = validator;

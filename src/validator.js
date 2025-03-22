@@ -17,14 +17,15 @@ const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
 class FHIRValidator {
     constructor(cliContext) {
         this.javaExecutable = getJavaExecutable();
+        this.sessionId = null;
         if (cliContext) {
             this.cliContext = cliContext;
             if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
             this.cliContext.igs = this.cliContext?.igs || [];
             this.cliContext.sv = this.cliContext?.sv || '4.0.1';
+            if (this.cliContext?.sessionId) this.sessionId = this.cliContext.sessionId;
         }
-
-        this.sessionId = null;
+        
         this.keepAliveInterval = null;
         this.pid = null;
     }
@@ -163,7 +164,11 @@ class FHIRValidator {
          
 
     async initializeSession() {
-        log("🔍 Initializing FHIR validation session...");
+        if (this.sessionId) {
+            log(`🔍 Trying to fetch validation session ${this.sessionId}...`);
+        } else {
+            log("🔍 Initializing new validation session...");
+        }
     
         try {
             const response = await axios.post('http://localhost:3500/validate', {
@@ -172,11 +177,20 @@ class FHIRValidator {
                     "fileName": "initializeSession.json",
                     "fileContent": "{\"resourceType\": \"Basic\"}",
                     "fileType": "json"
-                }]
+                }],
+                sessionId: this.sessionId
             });
     
+            if (this.sessionId) {
+                if (response.data.sessionId !== this.sessionId) {
+                    log(`⚠ Could not re-use session, new session created: ${response.data.sessionId}`);
+                } else {
+                    log(`✅ Cached session ${this.sessionId} fetched successfully.`)
+                }
+            } else {
+                log(`✅ Session initialized: ${response.data.sessionId}`);
+            }
             this.sessionId = response.data.sessionId;
-            log(`✅ Session initialized: ${this.sessionId}`);
     
             this.startKeepAlive();
         } catch (error) {
