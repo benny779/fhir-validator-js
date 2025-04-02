@@ -240,7 +240,8 @@ const expectedResult2 = {
 
     const validator2 = await createValidatorInstance({
         sv: "4.0.1",
-        igs: []
+        igs: [],
+        validatorUrl: "http://localhost:3500",
     });
 
     const resource = {

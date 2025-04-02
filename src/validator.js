@@ -13,14 +13,17 @@ const http = require('http'); // ✅ Use Node's built-in HTTP client
 
 const BIN_DIR = path.join(__dirname, '../bin');
 const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
+const INTERNAL_VALIDATOR_URL = "http://localhost:3500";
 
 class FHIRValidator {
     constructor(cliContext) {
         this.javaExecutable = getJavaExecutable();
+        this.validatorUrl = null;
         this.sessionId = null;
         if (cliContext) {
             this.cliContext = cliContext;
             if (this.cliContext?.txServer && ['n/a', '', 'null', 'none', 'na'].includes(this.cliContext.txServer)) this.cliContext.txServer = null;
+            if (this.cliContext?.validatorUrl) this.validatorUrl = this.cliContext.validatorUrl;
             this.cliContext.igs = this.cliContext?.igs || [];
             this.cliContext.sv = this.cliContext?.sv || '4.0.1';
             if (this.cliContext?.sessionId) this.sessionId = this.cliContext.sessionId;
@@ -30,12 +33,19 @@ class FHIRValidator {
         this.pid = null;
     }
 
+    getValidatorEndpoint() {
+        if (!this.validatorUrl || this.validatorUrl === 'internal') {
+            return INTERNAL_VALIDATOR_URL;
+        }
+        return this.validatorUrl;
+    }
     /**
      * Checks if the Validator Server is available by making a direct HTTP request.
      * @returns {Promise<boolean>} - Resolves to true if the server is responsive, otherwise false.
      */
     async isValidatorServerUp() {
-        const url = "http://localhost:3500/validator/version";
+        const url = this.getValidatorEndpoint() + "/validator/version";
+        console.log(`🔍 Checking if FHIR Validator Server is up at ${url}`);
         const maxRetries = 10;
         let attempts = 0;
     
@@ -59,13 +69,13 @@ class FHIRValidator {
                         reject(new Error("Healthcheck timeout"));
                     });
                 });
-    
+                console.log(`✅ FHIR Validator Server at ${url} is up!`);
                 return true; // ✅ Server is up
             } catch (error) {
                 await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
             }
         }
-    
+        console.log(`ℹ️ FHIR Validator Server at ${url} is not responding after ${maxRetries} attempts.`)
         return false; // ❌ Server is not responding after retries
     }
     
@@ -167,11 +177,11 @@ class FHIRValidator {
         if (this.sessionId) {
             log(`🔍 Trying to fetch validation session ${this.sessionId}...`);
         } else {
-            log("🔍 Initializing new validation session...");
+            log("ℹ️ Initializing new validation session...");
         }
-    
+        
         try {
-            const response = await axios.post('http://localhost:3500/validate', {
+            const response = await axios.post(this.getValidatorEndpoint() + '/validate', {
                 cliContext: this.cliContext,
                 filesToValidate: [{
                     "fileName": "initializeSession.json",
@@ -185,7 +195,7 @@ class FHIRValidator {
                 if (response.data.sessionId !== this.sessionId) {
                     log(`⚠ Could not re-use session, new session created: ${response.data.sessionId}`);
                 } else {
-                    log(`✅ Cached session ${this.sessionId} fetched successfully.`)
+                    log(`✅ Re-using cached session ${this.sessionId}.`)
                 }
             } else {
                 log(`✅ Session initialized: ${response.data.sessionId}`);
@@ -231,7 +241,7 @@ class FHIRValidator {
         };
         
         try {
-            const response = await axios.post('http://localhost:3500/validate', {
+            const response = await axios.post(this.getValidatorEndpoint() + '/validate', {
                 cliContext,
                 filesToValidate: resource.map(resourceEntry),
                 sessionId: this.sessionId
@@ -268,7 +278,7 @@ class FHIRValidator {
 
         this.keepAliveInterval = setInterval(async () => {
             try {
-                await axios.post('http://localhost:3500/validate', {
+                await axios.post(this.getValidatorEndpoint() + '/validate', {
                     cliContext: this.cliContext,
                     filesToValidate: [{
                         "fileName": "keepalive.json",
