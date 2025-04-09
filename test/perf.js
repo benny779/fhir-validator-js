@@ -1,143 +1,144 @@
-const createValidatorInstance = require('../src/index');
-const { performance } = require('perf_hooks');
+import { createValidatorInstance } from '../src/index.js';
+import os from 'os';
 
-// Configuration
-const NUM_VALIDATORS = 4;
-const NUM_RESOURCES = 128;
-const BATCH_SIZES = [1, 4, 8, 16, 32];
-const PARALLEL_REQUESTS = [1, 2, 3];
+const NUM_RESOURCES = 500;
+const BATCH_SIZES = [10, 20, 25, 40, 70, 100, 500];
 
-// Function to generate a randomized FHIR resource
+// Generate random FHIR resource
 function generateRandomResource(index) {
-    return {
-        resourceType: "Patient",
-        id: `patient-${index}`,
-        name: [{
-            given: [`Test-${index}`],
-            family: `User-${Math.floor(Math.random() * 10000)}`
-        }],
-        birthDate: `${Math.floor(Math.random() * 100) + 1920}-01-01`
-    };
+  return {
+    resourceType: 'Patient',
+    id: `patient-${index}`,
+    name: [{ given: [`Test-${index}`], family: `User-${Math.floor(Math.random() * 10000)}` }],
+    birthDate: `${Math.floor(Math.random() * 100) + 1920}-01-01`
+  };
 }
 
-// Pre-instantiate validators
-const validators = [];
-const sessionIds = ['9f304524-87b5-42af-9109-d60db0da87dd', 'c25d8a2e-abfc-4f8c-8246-c41eb263f103', '5a11b6af-7cfe-4187-8477-b3e5ebf61149', '320a7e55-8a63-48f4-9fbb-bc25c8ffc972'];
+// Smarter thread config generator: ensure delta ≈ half CPU count
+function generateThreadConfigs() {
+  const numCPUs = os.cpus().length;
+  const delta = Math.round(numCPUs / 2);
+  const configs = [];
 
-async function initializeValidators() {
-    console.log("Initializing validation server...");
-    const startServer = performance.now();
-    await createValidatorInstance();
-    const endServer = performance.now();
-    console.log(`Validation server running. Initialization Time: ${(endServer - startServer).toFixed(2)}ms`);
-
-    console.log("Initializing validator sessions...");
-    for (let i = 0; i < NUM_VALIDATORS; i++) {
-        const startSession = performance.now();
-        const validator = await createValidatorInstance({
-            sv: "4.0.1",
-            igs: ["il.core.fhir.r4#0.16.2"],
-            txServer: null,
-            sessionId: sessionIds.length > i ? sessionIds[i] : null
-        });
-
-        validators[i] = validator;
-
-        console.log(`Warming up validator session ${i}...`);
-        await callValidate(validator, generateRandomResource(i + 10000));
-        const endSession = performance.now();
-        console.log(`Validator session ${i} initialized in ${(endSession - startSession).toFixed(2)}ms`);
+  for (let min = Math.ceil(numCPUs / 2); min <= numCPUs * 2; min++) {
+    const max = min + delta;
+    if (max <= numCPUs * 4) {
+      configs.push({ threadsMin: min, threadsMax: max });
     }
-    console.log("All validator sessions initialized.");
+  }
+
+  return configs;
 }
 
-async function callValidate(validator, resources) {
-    return await validator.validate(resources, ['http://fhir.health.gov.il/StructureDefinition/il-core-patient']);
-}
-
+// Time measurement wrapper
 async function measureTime(label, fn) {
-    console.time(label);
-    const startTime = Date.now();
-
-    await fn(); // Run the async function
-
-    const durationMs = Date.now() - startTime;
-    console.timeEnd(label);
-
-    return durationMs; // Ensure the duration is returned
+  console.time(label);
+  const start = Date.now();
+  await fn();
+  const duration = Date.now() - start;
+  console.timeEnd(label);
+  return duration;
 }
 
-async function runTests() {
-    await initializeValidators();
-    console.log(`Running performance tests with ${NUM_RESOURCES} resources on ${NUM_VALIDATORS} CPU cores...`);
+// Run tests for one thread configuration
+async function runTests(threadsMin, threadsMax) {
+  console.log(`\n🚀 Initializing validator (Threads: ${threadsMin}..${threadsMax})`);
+  const validator = await createValidatorInstance({
+    sv: '4.0.1',
+    igs: ['il.core.fhir.r4#0.16.2'],
+    txServer: null,
+    threadsMin,
+    threadsMax
+  });
 
-    const results = [];
+  const results = [];
 
-    for (const batchSize of BATCH_SIZES) {
-        for (const parallelRequests of PARALLEL_REQUESTS) {
-            for (let numInstances = 1; numInstances <= NUM_VALIDATORS; numInstances++) {
-                
-                const resources = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
+  for (const batchSize of BATCH_SIZES) {
+    const resources = Array.from({ length: NUM_RESOURCES }, (_, i) => generateRandomResource(i));
+    let totalProcessed = 0;
 
-                let totalProcessed = 0;
-
-                const durationMs = await measureTime(
-                    `Test [Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests}]`,
-                    async () => {
-                        await Promise.all(
-                            Array.from({ length: numInstances }, (_, i) =>
-                                Promise.all(
-                                    Array.from({ length: parallelRequests }, async () => {
-                                        while (totalProcessed < NUM_RESOURCES) {
-                                            const batch = resources.slice(totalProcessed, totalProcessed + batchSize);
-                                            if (batch.length === 0) break;
-
-                                            await callValidate(validators[i], batch);
-                                            totalProcessed += batch.length;
-                                        }
-                                    })
-                                )
-                            )
-                        );
-                    }
-                );
-
-                if (durationMs === undefined || isNaN(durationMs)) {
-                    console.error("❌ Error: `measureTime` did not return a valid duration!");
-                    return;
-                }
-
-                const totalRequests = NUM_RESOURCES;
-                const throughput = (totalRequests / (durationMs / 1000)).toFixed(2);
-
-                results.push({
-                    numInstances,
-                    batchSize,
-                    parallelRequests,
-                    durationMs,
-                    throughput
-                });
-
-                console.log(
-                    `📊 Throughput: ${throughput} requests/sec (Time: ${durationMs}ms, Total Requests: ${totalRequests})`
-                );
+    const durationMs = await measureTime(
+      `Test [Threads: ${threadsMin}..${threadsMax}, Batch: ${batchSize}]`,
+      async () => {
+        await Promise.all([
+          (async () => {
+            while (totalProcessed < NUM_RESOURCES) {
+              const batch = resources.slice(totalProcessed, totalProcessed + batchSize);
+              await validator.validate(batch, ['http://fhir.health.gov.il/StructureDefinition/il-core-patient']);
+              totalProcessed += batch.length;
             }
-        }
-    }
-
-    console.log("✅ Performance tests completed.");
-    console.log("📊 Summary of Execution Times:");
-
-    results
-    .sort((a, b) => Number(a.throughput) - Number(b.throughput)) // Sort results by throughput
-    .forEach(({ numInstances, batchSize, parallelRequests, durationMs, throughput }) =>
-        console.log(
-            `Instances: ${numInstances}, Batch: ${batchSize}, Parallel: ${parallelRequests} → ` +
-            `Time: ${durationMs}ms, Throughput: ${Number(throughput).toFixed(2)} req/sec`
-        )
+          })()
+        ]);
+      }
     );
 
-    validators.forEach(validator => validator.shutdown());
+    const throughput = (NUM_RESOURCES / (durationMs / 1000)).toFixed(2);
+    results.push({ batchSize, durationMs, throughput: Number(throughput) });
+  }
+
+  validator.shutdown();
+  return { threadsMin, threadsMax, results };
 }
 
-runTests().catch(console.error);
+// Analyze how many times larger batch sizes outperformed smaller ones
+function analyzeRelativePerformance(runs) {
+  function countRelativityScore(results) {
+    const sorted = [...results].sort((a, b) => a.batchSize - b.batchSize);
+    let score = 0;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].throughput > sorted[i - 1].throughput) score++;
+    }
+    return score;
+  }
+
+  return runs.map(run => {
+    const sorted = [...run.results].sort((a, b) => a.batchSize - b.batchSize);
+    const score = countRelativityScore(sorted);
+    const avg = sorted.reduce((sum, r) => sum + r.throughput, 0) / sorted.length;
+    const best = sorted.reduce((max, r) => r.throughput > max.throughput ? r : max);
+    return {
+      ...run,
+      relativityScore: score,
+      averageThroughput: avg.toFixed(2),
+      bestBatchSize: best.batchSize
+    };
+  }).sort((a, b) => b.relativityScore - a.relativityScore);
+}
+
+// Final orchestrator
+async function main() {
+  const configs = generateThreadConfigs();
+  const allRuns = [];
+
+  for (const config of configs) {
+    const result = await runTests(config.threadsMin, config.threadsMax);
+    allRuns.push(result);
+  }
+
+  const scored = analyzeRelativePerformance(allRuns);
+  const best = scored[0];
+
+  // Full ranked report
+  console.log('\n📊 Relative Performance Summary (Sorted by Score):\n');
+  console.log('Threads       | Score | Avg TPS | Best Batch');
+  console.log('--------------|-------|---------|------------');
+  for (const run of scored) {
+    const label = `${run.threadsMin}..${run.threadsMax}`.padEnd(13);
+    const score = `${run.relativityScore}/${BATCH_SIZES.length - 1}`.padEnd(7);
+    const avg = `${run.averageThroughput}`.padEnd(9);
+    const bestBatch = `${run.bestBatchSize}`;
+    console.log(`${label} | ${score} | ${avg} | ${bestBatch}`);
+  }
+
+  // Winner
+  console.log('\n🏆 Best Configuration Based on Relative Performance:');
+  console.log(`➡️ Threads: ${best.threadsMin}..${best.threadsMax}, Score: ${best.relativityScore}/${BATCH_SIZES.length - 1}`);
+
+  best.results
+    .sort((a, b) => a.batchSize - b.batchSize)
+    .forEach(({ batchSize, throughput }) =>
+      console.log(`Batch ${batchSize} → ${throughput.toFixed(2)} req/sec`)
+    );
+}
+
+main().catch(console.error);

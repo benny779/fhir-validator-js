@@ -2,41 +2,37 @@
  * © Copyright Outburn Ltd. 2025 All Rights Reserved
  *   Project name: FUME / FHIR Validator
  */
-const { downloadAndExtractJDK } = require('./utils/jdk-utils');
-const { downloadValidatorJar } = require('./utils/file-utils'); // ✅ Import fix
-const { log, logError } = require('./utils/logger');
-const fs = require('fs-extra');
-const path = require('path');
-
-const JDK_PATH = path.join(__dirname, '../jdk');
-const BIN_DIR = path.join(__dirname, '../bin');
-const JAR_PATH = path.join(BIN_DIR, 'validator.jar');
+import { downloadAndExtractJDK, downloadYafvaJar } from './utils.js';
+import { log } from './logger.js';
+import fs from 'fs-extra';
+import { jdkPath, jarPath } from './paths.js';
 
 async function setupIfNeeded() {
-    log("🔧 Running setup...");
+  log('🔧 Running setup...');
 
-    if (!fs.existsSync(JDK_PATH)) {
-        log("📦 Installing JDK...");
-        await downloadAndExtractJDK();
-    } else {
-        log("✅ JDK is already installed.");
-    }
+  if (!fs.existsSync(jdkPath)) {
+    log('📦 Installing JDK...');
+    await downloadAndExtractJDK();
+  } else {
+    log('✅ JDK is already installed.');
+  }
 
-    if (!fs.existsSync(JAR_PATH)) {
-        log("⬇ Downloading Validator JAR...");
-        await downloadValidatorJar(); // ✅ Now correctly referenced
-    } else {
-        log("✅ Validator JAR is already installed.");
-    }
+  if (!fs.existsSync(jarPath)) {
+    log('📦 Installing YAFVA.JAR...');
+    await downloadYafvaJar();
+  } else {
+    log('✅ YAFVA.JAR is already installed.');
+  }
 }
 
 (async () => {
-    try {
-        console.log("🚀 Starting installation...");
-        await setupIfNeeded();
-        console.log("✅ Installation completed successfully.");
-    } catch (error) {
-        console.error(`❌ Installation failed: ${error.message}`);
-        process.exit(1);
-    }
+  try {
+    console.log('🚀 Starting installation...');
+    await setupIfNeeded();
+    console.log('✅ Installation completed successfully.');
+  } catch (error) {
+    console.error(`❌ Installation failed: ${error.message}`);
+     
+    process.exit(1);
+  }
 })();
