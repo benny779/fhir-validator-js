@@ -2,15 +2,16 @@
  * © Copyright Outburn Ltd. 2025 All Rights Reserved
  *   Project name: FUME / FHIR Validator
  */
-import { downloadAndExtractJDK, downloadYafvaJar } from './utils.js';
+import { downloadAndExtractJDK, downloadYafvaJar, getOsArchitecture } from './utils.js';
 import { log } from './logger.js';
 import fs from 'fs-extra';
 import { jdkPath, jarPath } from './paths.js';
 
 async function setupIfNeeded() {
-  log('🔧 Running setup...');
+    log("🔧 Running setup...");
+    const { os } = getOsArchitecture();
 
-  if (!fs.existsSync(jdkPath)) {
+    if (!fs.existsSync(JDK_PATH) && os !== "linux") {
     log('📦 Installing JDK...');
     await downloadAndExtractJDK();
   } else {
