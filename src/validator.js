@@ -36,12 +36,14 @@ async function _isPortInUse(port) {
     });
   }
   
-  const [ipv4, ipv6] = await Promise.all([
-    tryListen('0.0.0.0'),
-    tryListen('::'),
-  ]);
+  // const [ipv4, ipv6] = await Promise.all([
+  //   tryListen('0.0.0.0'),
+  //   tryListen('::'),
+  // ]);
   
-  return ipv4 || ipv6;
+  // return ipv4 || ipv6;
+  const ipv4 = await tryListen('0.0.0.0');
+  return ipv4; // Only check IPv4 for now
 }
 
 

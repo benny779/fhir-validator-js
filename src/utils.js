@@ -127,6 +127,9 @@ function getJdkBinPath() {
  * @returns {string} Path to the Java binary
  */
 function getJavaExecutable() {
+  const { os } = getOsArchitecture();
+  if (os === 'linux' )  return  'java';
+  
   const binPath = getJdkBinPath();
   return process.platform === 'win32'
     ? join(binPath, 'java.exe')
