@@ -11,7 +11,7 @@ async function setupIfNeeded() {
     log("🔧 Running setup...");
     const { os } = getOsArchitecture();
 
-    if (!fs.existsSync(JDK_PATH) && os !== "linux") {
+    if (!fs.existsSync(jdkPath) && os !== "linux") {
     log('📦 Installing JDK...');
     await downloadAndExtractJDK();
   } else {
